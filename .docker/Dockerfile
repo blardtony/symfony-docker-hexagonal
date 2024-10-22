@@ -1,4 +1,4 @@
-FROM php:8.3-apache
+FROM dunglas/frankenphp:latest-php8.3 as build_php
 
 COPY --from=composer/composer:2-bin /composer /usr/bin/composer
 
@@ -11,40 +11,44 @@ RUN apt-get install -y libpq-dev
 RUN docker-php-ext-install pdo pdo_pgsql pgsql
 
 # GD
-RUN #install-php-extensions gd
+RUN install-php-extensions gd
 
-# Apache
-RUN a2enmod rewrite
+RUN install-php-extensions intl
+
+# COMPOSER (for frontend)
+COPY composer.json composer.json
+COPY composer.lock composer.lock
+COPY symfony.lock symfony.lock
+ENV COMPOSER_ALLOW_SUPERUSER=1
+RUN composer install --optimize-autoloader --no-scripts
+
+COPY public public
 
 COPY bin bin
 COPY config config
 COPY src src
 COPY migrations migrations
 
-# Composer
-COPY composer.json .
-COPY composer.lock .
-COPY symfony.lock .
-ENV COMPOSER_ALLOW_SUPERUSER=1
-
-
-COPY public public
 COPY .env .env
 
-RUN composer install --optimize-autoloader --no-scripts
 RUN php bin/console cache:clear
 
 RUN chmod 755 -R .
 RUN chmod 777 -R var/
 
-COPY .docker/.apache.conf /etc/apache2/sites-available/000-default.conf
 
-WORKDIR /var/www/html
+FROM dunglas/frankenphp:latest-php8.3-alpine
 
-EXPOSE 80
+RUN install-php-extensions \
+    pdo \
+    pdo_pgsql \
+    pgsql \
+    intl \
+    gd
 
-# Healthcheck
-HEALTHCHECK --interval=10s --timeout=3s --start-period=30s \
-    CMD php bin/console doctrine:query:sql "SELECT 1" || exit 1
-
-CMD ["apache2-foreground"]
+COPY --from=build_php /app /app
+ENV FRANKENPHP_CONFIG="worker ./public/index.php"
+ENV CADDY_GLOBAL_OPTIONS="auto_https off"
+ENV SERVER_NAME=":80"
+ENV APP_RUNTIME="Runtime\\FrankenPhpSymfony\\Runtime"
+ENV APP_ENV="prod"
