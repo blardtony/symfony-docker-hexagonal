@@ -29,4 +29,9 @@ class AccountService
         $this->accountRepository->save($account);
         return $account;
     }
+
+    public function getAllAccounts(): array
+    {
+        return $this->accountRepository->findAll();
+    }
 }
