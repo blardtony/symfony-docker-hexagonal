@@ -17,6 +17,13 @@ class AccountController extends AbstractController
     ) {
     }
 
+    #[Route('/accounts', name: 'get_accounts', methods: ['GET'])]
+    public function getAccounts(): JsonResponse
+    {
+        $accounts = $this->accountService->getAllAccounts();
+        return new JsonResponse(array_map(fn($account) => AccountDTO::fromEntity($account), $accounts));
+    }
+
     #[Route('/accounts', name: 'create_account', methods: ['POST'])]
     public function createAccount(Request $request): JsonResponse
     {
